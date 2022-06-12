@@ -5,8 +5,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 contract FlexibleERC20 is ERC20 {
     //
-    uint constant _initial_supply = 100000000000 * (10**18);
-    uint currentBalance = _initial_supply;
+    uint private currentBalance = 0;
     //
     // using ERC20 for IERC20;
 
@@ -34,6 +33,7 @@ contract FlexibleERC20 is ERC20 {
     
     MasterOperation[] private MasterOperationRecord;
     MintOperation[] private MintOperationRecord;
+    MintOperation[] private BurnOperationRecord;
     //Array
     address[] MasterList;
     mapping(address=>bool) private isMaster;
@@ -42,27 +42,17 @@ contract FlexibleERC20 is ERC20 {
     Counters.Counter private MasterCounter;
     Counters.Counter private MasterOperationCounter;
     Counters.Counter private MintOperationCounter;
+    Counters.Counter private BurnOperationCounter;
     //Owner
     address private Owner;
     mapping(address=>bool) private isOwner;
-    //Init the contract
-
-
- /**
-##############################################
-Token informations
-##############################################
-  */
-    function ReadBalance(string memory token) public view returns (uint) {
-        return currentBalance;
-    }
-    function AccountBalance (string memory add) public view returns (uint) {
-        return balanceOf(parseAddr(add));
-    }
 
 /**
  * Token Counstractor
  */
+     function CurrentSupply () public view returns (uint) {
+        return currentBalance;
+    }
     function AddMaster(address master) public returns (bool) {
         require(msg.sender==Owner);
         MasterList.push(master);
@@ -138,6 +128,7 @@ Token informations
 
     function MasterSaFeMint(address target,uint fee ,string memory details) public returns (bool) {
         require(isMaster[msg.sender]);
+        currentBalance+=fee;
         MintOperation memory tmpOperation;
         tmpOperation.Timestmp = block.timestamp;
         tmpOperation.Action="Mint";
@@ -179,6 +170,62 @@ Token informations
             '"From":"',AddressToString(abi.encodePacked(MintOperationRecord[i].From)),'"',",",
             '"Target":"',AddressToString(abi.encodePacked(MintOperationRecord[i].Target)),'"',",",
             '"Details":"',MintOperationRecord[i].Details,'"',
+            "}"
+             ));
+        }
+        }
+
+        return string(abi.encodePacked(
+            "[",
+            tmp,
+            "]"
+        ));
+    }
+
+    function MasterSaFeBurn(uint fee ,string memory details) public returns (bool) {
+        require(isMaster[msg.sender]);
+        currentBalance-=fee;
+        MintOperation memory tmpOperation;
+        tmpOperation.Timestmp = block.timestamp;
+        tmpOperation.Action="Burn";
+        tmpOperation.From = msg.sender;
+        tmpOperation.Target = msg.sender;
+        tmpOperation.Details = details;
+        tmpOperation.Fee = fee;
+        tmpOperation.Id= MintOperationCounter.current();
+        BurnOperationRecord.push(tmpOperation);
+        BurnOperationCounter.increment();
+        _burn(msg.sender,fee);
+        return true;
+    }
+
+    function ReadBurnOperationRecordIndex () public view returns (uint) {
+        return  BurnOperationCounter.current();
+    }
+    function ReadBurnOperationRecord (uint startIndex , uint endIndex) public view returns (string memory) {
+        string memory tmp;
+        if(BurnOperationRecord.length>startIndex){
+        tmp = string(abi.encodePacked(tmp,
+            '{',
+            '"Timestmp":',Strings.toString(BurnOperationRecord[startIndex].Timestmp),",",
+            '"Id":',Strings.toString(BurnOperationRecord[startIndex].Id),",",
+            '"Fee":',Strings.toString(BurnOperationRecord[startIndex].Fee),",",
+            '"Action":"',BurnOperationRecord[startIndex].Action,'"',",",
+            '"From":"',AddressToString(abi.encodePacked(BurnOperationRecord[startIndex].From)),'"',",",
+            '"Target":"',AddressToString(abi.encodePacked(BurnOperationRecord[startIndex].Target)),'"',",",
+            '"Details":"',BurnOperationRecord[startIndex].Details,'"',
+            "}"
+             ));
+        for (uint i = startIndex+1 ;i<=endIndex ;i++ ){
+             tmp = string(abi.encodePacked(tmp,
+            ',{',
+            '"Timestmp":',Strings.toString(BurnOperationRecord[i].Timestmp),",",
+            '"Id":',Strings.toString(BurnOperationRecord[i].Id),",",
+            '"Fee":',Strings.toString(BurnOperationRecord[i].Fee),",",
+            '"Action":"',BurnOperationRecord[i].Action,'"',",",
+            '"From":"',AddressToString(abi.encodePacked(BurnOperationRecord[i].From)),'"',",",
+            '"Target":"',AddressToString(abi.encodePacked(BurnOperationRecord[i].Target)),'"',",",
+            '"Details":"',BurnOperationRecord[i].Details,'"',
             "}"
              ));
         }
